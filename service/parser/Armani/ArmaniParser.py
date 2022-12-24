@@ -1,46 +1,59 @@
+import requests
 from bs4 import BeautifulSoup
 
-from service.parser.Armani.Parser import BaseParser
+from service.parser.Parser import Parser
 
 
-class ArmaniParser(BaseParser):
+class ArmaniParser(Parser):
 
     def __init__(self, base_url: str, headers: dict):
         super().__init__(base_url, headers)
-        self.cat = None
 
-    @staticmethod
-    def get_amount_page(soup: BeautifulSoup) -> str:
-        """Парсинг кол-во страниц на сайта"""
-        amount_page = soup.find("div", class_="pagination__info").text.strip().split(" ")[-1]
-        return amount_page
+    async def start(self):
+        await self.open_url(self.base_url)
 
-    def get_all_link_cards(self, url: str):
-        all_links = []
-        """Получение всех ссылок на карточки товара"""
-        soup = self.get_object_soup(url)
-        value = soup.find("section", class_="product-list").find_all("div", class_="item-card__variant")
-        for _ in value:
-            if not _.find("a", class_="item-card__pdp-link-image").get("href") in all_links:
-                all_links.append(_.find("a", class_="item-card__pdp-link-image").get("href"))
-            else:
-                continue
-        return all_links
+    # @staticmethod
+    # def get_amount_page(soup: BeautifulSoup) -> str:
+    #     """Парсинг кол-во страниц на сайта"""
+    #     amount_page = soup.find("div", class_="pagination__info").text.strip().split(" ")[-1]
+    #     return amount_page
 
-    def open_url(self, url: str, name_cat: str) -> (int, list):
-        print(f"Сбор информации с категории {name_cat}")
-        links_card = []
-        soup = self.get_object_soup(url)
-        pages = self.get_amount_page(soup)  # Кол-во страниц
+    # def get_all_link_cards(self, url: str):
+    #     all_links = []
+    #     """Получение всех ссылок на карточки товара"""
+    #     soup = self.get_object_soup(url)
+    #     value = soup.find("section", class_="product-list").find_all("div", class_="item-card__variant")
+    #     for _ in value:
+    #         if not _.find("a", class_="item-card__pdp-link-image").get("href") in all_links:
+    #             all_links.append(_.find("a", class_="item-card__pdp-link-image").get("href"))
+    #         else:
+    #             continue
+    #     return all_links
 
-        for page in range(1, int(pages) + 1):
-            url_page = f'{url}?page={page}'
-            print(f'Получение информации с {url_page}')
-            links_card += self.get_all_link_cards(url_page)
+    async def open_url(self, url: str):
+        try:
+            r = requests.get(url=url, headers=self.headers)
+            soup = BeautifulSoup(r.text, 'lxml')
+            print(f"Открыли страницу {url}")
+        except Exception as e:
+            print(e)
 
-        total_prod = len(links_card)
+        try:
+            total_product = soup.find(class_="totalResults").text.strip().split(" ")[0]
+            total_page = soup.find("div", class_="pagination__info").text.strip().split(" ")[-1]
+        except:
+            total_product = 0
+            total_page = 0
 
-        return total_prod, links_card
+        all_card = soup.find("section", class_="product-list").find_all("div", class_="item-card__variant")
+        current_page = soup.find("ul", class_="pagination__list").find(class_="pagination__item--current").text.strip()
+        print(
+            f'Текущая страница: {current_page}\n'
+            f'Всего страниц в категории: {total_page}\n'
+            f'Всего товаров: {total_product}\n'
+        )
 
-    def __generator_url(self, category) -> str:
-        return f"{self.base_url}{category}"
+        return total_product, total_page, all_card, current_page
+
+    # def __generator_url(self, category) -> str:
+    #     return f"{self.base_url}{category}"
